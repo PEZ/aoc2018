@@ -88,6 +88,55 @@
          (remove nil?)
          (ffirst))))
 
+
+;;===============================================================================
+;;=============================== day 3 =========================================
+;;===============================================================================
+(defn- day3-data
+  "parse day 3 data -> ({:id :x :y :w :h} ... )"
+  []
+  (let [line-re #"#(\d+) @ (\d+),(\d+): (\d+)x(\d+)$"]
+    (map (fn [line]
+           (when-let [matches (re-matches line-re line)]
+             (zipmap [:id :x :y :w :h] (map #(js/parseInt %) (rest matches)))))
+         (daily-data 3))))
+
+(defn- cells-touched
+  "yields seq of the fabric [x y] values touched by a swath"
+  [swath]
+  (let [{:keys [x y w h]} swath]
+    (for [xx (range x (+ x w))
+          yy (range y (+ y h))] [xx yy])))
+
+(defn- reserve-cells
+  "adds reservations to the fabric (list of reserving id per cell)
+   result is map on [x y] -> vector of occupying reservation id"
+  [fabric id cells]
+  (persistent!
+   (reduce (fn [t-fb xy]
+             (assoc! t-fb xy (conj (or (get t-fb xy) []) id))) (transient fabric) cells)))
+
+(defn- reserve-swaths
+  "add all the reservations in the dataset to an empty fabric"
+  [data]
+  (reduce (fn [fb sw]
+            (reserve-cells fb (:id sw) (cells-touched sw))) {} data))
+
+(defn- swath-alone?
+  "given the reservations, and a swath, tell me if it is unoccupied by others"
+  [fb sw]
+  (let [cells (cells-touched sw)]
+    (= 1 (reduce max
+                 (map #(count (get fb %)) cells)))))
+
+(defn day3 []
+  (let [data (day3-data)
+        reservations (reserve-swaths data)
+        over-committed (count (filter (fn [[k v]] (> (count v) 1)) reservations))
+        unscathed (first (filter #(swath-alone? reservations %) data))]
+    {:over-committed over-committed
+     :unscathed unscathed}))
+
 ;;=============================================================================
 
 (deftest aoc-tests
@@ -95,7 +144,12 @@
   (is (= (day1b) 219))
   
   (is (= (day2a) 7872))
-  (is (= (day2b) "tjxmoewpdkyaihvrndfluwbzc")))
+  (is (= (day2b) "tjxmoewpdkyaihvrndfluwbzc"))
+
+  (let [ans (day3)]
+    (is (= (:over-committed ans) 112418))
+    (is (= (-> ans :unscathed :id) 560))))
+
 
 (defn main [& args]
   (println "hello AOC-2018"))
