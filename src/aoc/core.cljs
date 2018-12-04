@@ -137,6 +137,98 @@
     {:over-committed over-committed
      :unscathed unscathed}))
 
+;;===============================================================================
+;;=============================== day 4 =========================================
+;;===============================================================================
+
+(defn- grok-event
+  "turn event text into an event"
+  [txt]
+  (cond
+    (= "falls asleep" txt) [:sleeps]
+    (= "wakes up" txt) [:wakes]
+    :else (let [matches (re-matches #"^Guard #(\d+) begins shift$" txt)]
+            (if matches
+              [:starts (js/parseInt (second matches))]
+              (throw (js/Error. (str "invalid event: " txt)))))))
+
+(defn- day4-data
+  "parse day 4 data -> ( :ts {:yr :mon :day :hr :min} :event {} } ... )"
+  []
+  (let [line-re #"^\[(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2})\] (.*)$"]
+    (->> (daily-data 4)
+         (map (fn [line]
+                (when-let [matches (re-matches line-re line)]
+                  (conj (into [] (map #(js/parseInt %) (take 5 (rest matches))))
+                        (grok-event (last matches))))))
+         (sort))))
+
+;; the naplog structure is used to absorb events in time-order, and
+;; bin these into slots by ID that can be analyzed.
+(defn- empty-naplog
+  "an initialized naplog `object`"
+  []
+  {:on-duty nil         ;; who was last logged on duty
+   :start-sleep nil     ;; time sleep started (when sleeping)
+   :sleep-histograms {} ;; map id->histogram by minute of being asleep
+   })
+
+(defn- update-naplog
+  "assuming log-datums are presented in chron order, transition the naplog to accumulate
+  histograms of sleep patterns"
+  [naplog log-datum]
+  (let [[minute evt] (take 2 (drop 4 log-datum))
+        ev-type (first evt)]
+    
+    (case ev-type
+      
+      ;; new guard started, record
+      :starts (assoc naplog :on-duty (second evt))
+
+      ;; current guard starts sleeping, record
+      :sleeps (assoc naplog :start-sleep minute)
+
+      ;; current guard wakes up, update histogram
+      :wakes  (let [{:keys [on-duty start-sleep]} naplog
+                    stop-sleep minute 
+                    histogram (get-in naplog [:sleep-histograms on-duty] (into [] (repeat 60 0)))
+                    updated-histogram (map-indexed (fn [i v]
+                                                     (if (and (>= i start-sleep)
+                                                              (<  i stop-sleep))
+                                                       (inc v) v)) histogram)]
+                (assoc-in naplog [:sleep-histograms on-duty] updated-histogram)))))
+
+(defn- most-slept
+  "return the histogram entry for most slept"
+  [hists]
+  (let [sums (into {} (map (fn [[k v]] [k (apply + v)]) hists))
+        best-key (key (apply max-key val sums))]
+    {:id best-key :total (get sums best-key) :histogram (get hists best-key)}))
+
+(defn- sleepyest-minute
+  "return the histogram entry which has the biggest slept minute"
+  [hists]
+  (let [max-map (into {} (map (fn [[k v]] [k (apply max v)]) hists))
+        best-id (key (apply max-key val max-map))
+        best-minute (first (apply max-key second (map-indexed vector (get hists best-id))))]
+    {:id best-id :best-minute best-minute}))
+
+(defn day4a []
+  (let [naplog (reduce update-naplog (empty-naplog) (day4-data))
+        sleep-winner (most-slept (:sleep-histograms naplog))
+        id (:id sleep-winner)
+        best-minute (first (apply max-key second (map-indexed vector (:histogram sleep-winner))))
+        cookie (* id best-minute)]
+    {:id id :best-minute best-minute :cookie cookie}))
+
+(defn day4b []
+  (let [naplog (reduce update-naplog (empty-naplog) (day4-data))
+        sleep-winner (sleepyest-minute (:sleep-histograms naplog))
+        id (:id sleep-winner)
+        best-minute (:best-minute sleep-winner)
+        cookie (* id best-minute)]
+    {:id id :best-minute best-minute :cookie cookie}))
+
 ;;=============================================================================
 
 (deftest aoc-tests
@@ -148,7 +240,10 @@
 
   (let [ans (day3)]
     (is (= (:over-committed ans) 112418))
-    (is (= (-> ans :unscathed :id) 560))))
+    (is (= (-> ans :unscathed :id) 560)))
+
+  (is (= (day4a) {:id 3203, :best-minute 44, :cookie 140932})
+      (= (day4b) {:id 1601, :best-minute 32, :cookie 51232})))
 
 
 (defn main [& args]
