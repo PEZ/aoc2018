@@ -289,6 +289,27 @@
     {:part1-answer (count all-reacted)
      :part2-answer (second (apply (partial min-key second) removal-trials))}))
 
+;;===============================================================================
+;;=============================== day 6 =========================================
+;;===============================================================================
+(defn- day6-data
+  "parse day 6 ({:id :x :y})"
+  []
+  (let [line-re #"(\d+), (\d+)$"]
+    (map-indexed
+     (fn [n line]
+       (when-let [matches (re-matches line-re line)]
+         (merge {:id (inc n)} (zipmap [:x :y] (map #(js/parseInt %) (rest matches))))))
+     (daily-line-data 6))))
+    
+
+
+#(
+  (day6-data)
+  )
+
+
+
 ;;=============================================================================
 
 (deftest aoc-tests
