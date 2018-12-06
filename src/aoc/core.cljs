@@ -10,12 +10,20 @@
 
 (nodejs/enable-util-print!)
 
+(defn- daily-path [day-num]
+  (str "data/day" day-num "/input.txt"))
+
 (defn- slurp-lines [file-name]
   (cstr/split-lines (io/slurp file-name)))
 
-(defn- daily-data [day-num]
+(defn- daily-line-data [day-num]
   (let [path (str "data/day" day-num "/input.txt")]
-    (slurp-lines path)))
+    (slurp-lines (daily-path day-num))))
+
+(defn- daily-char-data
+  "read character based daily data, eat trailing whitespace"
+  [day-num]
+  (cstr/trimr (io/slurp (daily-path day-num))))
 
 ;;===============================================================================
 ;;=============================== day 1 =========================================
@@ -24,7 +32,7 @@
 (defn day1-data
   "snarf data for day1 puzzles"
   []
-  (map #(js/parseInt %) (daily-data 1)))
+  (map #(js/parseInt %) (daily-line-data 1)))
 
 (defn day1a
   "find the final frequency by applying changes"
@@ -47,7 +55,7 @@
 
 (defn- day2-data
   []
-  (daily-data 2))
+  (daily-line-data 2))
 
 (defn- has-n-matching
   "see if `astr` has `num` occurances of some character"
@@ -99,7 +107,7 @@
     (map (fn [line]
            (when-let [matches (re-matches line-re line)]
              (zipmap [:id :x :y :w :h] (map #(js/parseInt %) (rest matches)))))
-         (daily-data 3))))
+         (daily-line-data 3))))
 
 (defn- cells-touched
   "yields seq of the fabric [x y] values touched by a swath"
@@ -156,7 +164,7 @@
   "parse day 4 data -> ( :ts {:yr :mon :day :hr :min} :event {} } ... )"
   []
   (let [line-re #"^\[(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2})\] (.*)$"]
-    (->> (daily-data 4)
+    (->> (daily-line-data 4)
          (map (fn [line]
                 (when-let [matches (re-matches line-re line)]
                   (conj (into [] (map #(js/parseInt %) (take 5 (rest matches))))
@@ -229,6 +237,58 @@
         cookie (* id best-minute)]
     {:id id :best-minute best-minute :cookie cookie}))
 
+
+;;===============================================================================
+;;=============================== day 5 =========================================
+;;===============================================================================
+
+;; notes - we quickly convert chars to ints, because cljs doesn't really
+;; have characters, just strings, and that gets ugly real quick
+
+(defn- chars-to-ints [sq]
+  (map #(.charCodeAt %) sq))
+
+(defn react-polymer
+  "polymer reaction logic"
+  ([poly] (react-polymer poly #{}))
+  ([poly omissions]
+   (loop [residue (list) poly poly]
+     (if-not (seq poly)
+       residue
+       (let [h-residue (first residue)
+             h-poly (first poly)]
+         (cond
+
+           ;; ones we omit
+           (omissions h-poly)
+           (recur residue (rest poly))
+
+           ;; nothing in the chamber
+           (not h-residue)
+           (recur (conj residue h-poly) (rest poly))
+
+           ;; only case difference between colliding bits
+           (let [d (- h-residue h-poly)]
+             (= 32 (max d (- d))))
+           (recur (rest residue) (rest poly))
+
+           ;; add this to the residue
+           :else
+           (recur (conj residue h-poly) (rest poly))))))))
+
+(defn day5 []
+  (let [data (chars-to-ints (daily-char-data 5))
+        all-reacted (react-polymer data)
+        removals (-> (filter #(and (>= % 65) (<= % 90)) all-reacted) (distinct))
+        removal-trials (into {}
+                             (map (fn [rm]
+                                    [rm (count (react-polymer data #{rm (+ 32 rm)}))]))
+                             removals)]
+    
+    
+    {:part1-answer (count all-reacted)
+     :part2-answer (second (apply (partial min-key second) removal-trials))}))
+
 ;;=============================================================================
 
 (deftest aoc-tests
@@ -243,7 +303,10 @@
     (is (= (-> ans :unscathed :id) 560)))
 
   (is (= (day4a) {:id 3203, :best-minute 44, :cookie 140932})
-      (= (day4b) {:id 1601, :best-minute 32, :cookie 51232})))
+      (= (day4b) {:id 1601, :best-minute 32, :cookie 51232}))
+
+  (is (= (day5) {:part1-answer 10384, :part2-answer 5412})))
+
 
 
 (defn main [& args]
