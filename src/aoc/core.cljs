@@ -25,6 +25,8 @@
   [day-num]
   (cstr/trimr (io/slurp (daily-path day-num))))
 
+(defn- abs [x] (max x (- x)))
+
 ;;===============================================================================
 ;;=============================== day 1 =========================================
 ;;===============================================================================
@@ -301,13 +303,19 @@
        (when-let [matches (re-matches line-re line)]
          (merge {:id (inc n)} (zipmap [:x :y] (map #(js/parseInt %) (rest matches))))))
      (daily-line-data 6))))
-    
 
+(defn- mh-dist [p1 p2]
+  (+ (abs (- (:x p1) (:x p2)))
+     (abs (- (:y p1) (:y p2)))))
 
-#(
-  (day6-data)
-  )
-
+(defn- neighbors
+  "yield points for eight neighbors of given point"
+  [pt]
+  (let [{:keys [x y]} pt]
+    (map (fn [xy] {:x (+ x (first xy)) :y (+ y (second xy))})
+         (let [rr (range -1 2)]
+           (for [dx rr dy rr :when (not= 0 dx dy)]
+             [dx dy])))))
 
 
 ;;=============================================================================
