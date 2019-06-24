@@ -1,0 +1,7 @@
+{
+    "calva.customCljsRepl": {
+        "name": "Node",
+        "startCode": "(do (require '[cljs.repl.node]) (require '[cider.piggieback]) (cider.piggieback/cljs-repl (cljs.repl.node/repl-env)))",
+        "connectedRegExp": "To quit, type: :cljs/quit"
+    }
+}
